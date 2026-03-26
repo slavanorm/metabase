@@ -581,6 +581,15 @@ const configs = [
     },
   },
   {
+    // MCP UI app is a standalone SDK consumer — allow embedding-sdk-package imports
+    // and raw hex color literals (used for MCP host theme fallback values).
+    files: ["frontend/src/metabase/embedding/mcp/**/*"],
+    rules: {
+      "no-restricted-imports": "off",
+      "metabase/no-color-literals": "off",
+    },
+  },
+  {
     files: ["frontend/src/metabase/utils/redux/hooks.ts"],
     rules: {
       "no-restricted-imports": "off",
