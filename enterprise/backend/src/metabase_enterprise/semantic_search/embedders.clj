@@ -15,7 +15,6 @@
    [honey.sql :as sql]
    [metabase-enterprise.semantic-search.env :as semantic.env]
    [metabase-enterprise.semantic-search.index-metadata :as semantic.index-metadata]
-   [metabase.metabot.core :as metabot]
    [metabase.util :as u]
    [metabase.util.log :as log]
    [next.jdbc :as jdbc]
@@ -32,6 +31,18 @@
 (def ^:private float-array-class
   "Cached `[F` class so [[parse-pgvector]] doesn't pay a `Class/forName` lookup per row."
   (Class/forName "[F"))
+
+(def ^:private search-model-mappings
+  {"model" "dataset"
+   "question" "card"})
+
+(defn- entity-type->search-model
+  "Map semantic-layer entity kinds to semantic-search model names.
+  The complexity scorer passes keyword kinds like `:table` / `:question`, while the search index
+  stores string model names like `\"table\"` / `\"card\"`."
+  [entity-type]
+  (let [entity-type (some-> entity-type name)]
+    (get search-model-mappings entity-type entity-type)))
 
 (defn- normalize-name [s]
   (some-> s str/trim u/lower-case-en))
@@ -144,7 +155,7 @@
     ;; downstream `prefer-new-row?` fold already collapses any that slip through, so the only cost
     ;; of a hypothetical duplicate would be a slightly wider SQL `OR` clause.
     (let [pairs (for [{:keys [id kind]} entities
-                      :let [m (metabot/entity-type->search-model kind)]
+                      :let [m (entity-type->search-model kind)]
                       :when m]
                   [m (str id)])
           ;; Fold fetch → parse → dedup in one pass. `prefer-new-row?` keeps the winner globally
