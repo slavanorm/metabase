@@ -1193,6 +1193,7 @@
   {:team    "Metabot"
    :api     #{metabase.metabot.api
               metabase.metabot.api.entity-analysis
+              metabase.metabot.config
               metabase.metabot.core
               metabase.metabot.init
               metabase.metabot.self
@@ -1239,7 +1240,7 @@
               transforms-base
               util
               warehouses}
-   :model-exports #{:model/AiUsageLog :model/MetabotConversation :model/MetabotMessage}
+   :model-exports #{:model/AiUsageLog :model/Metabot :model/MetabotConversation :model/MetabotMessage}
    :model-imports #{:model/Card
                     :model/Collection
                     :model/Dashboard
@@ -3187,6 +3188,24 @@
    :model-exports #{:model/SecurityAdvisory}
    :model-imports #{:model/User}}
 
+  enterprise/semantic-layer
+  {:team "Metabot"
+   :api  #{metabase-enterprise.semantic-layer.api
+           metabase-enterprise.semantic-layer.init}
+   :uses #{analytics
+           api
+           app-db
+           audit-app
+           collections
+           metabot
+           premium-features
+           settings
+           startup
+           task
+           util
+           enterprise/semantic-search}
+   :model-imports #{:model/Card :model/Collection :model/Measure :model/Metabot :model/Table}}
+
   enterprise/semantic-search
   {:team "Metabot"
    :api  #{metabase-enterprise.semantic-search.api
@@ -3199,6 +3218,7 @@
            config
            connection-pool
            llm
+           metabot
            models
            permissions
            premium-features
