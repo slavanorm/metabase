@@ -59,6 +59,7 @@
     :model/MetabotConversation               metabase.metabot.models.metabot-conversation
     :model/MetabotMessage                    metabase.metabot.models.metabot-message
     :model/AiUsageLog                        metabase.metabot.models.ai-usage-log
+    :model/DataComplexityScore               metabase-enterprise.semantic-layer.models.data-complexity-score
     :model/MetabotGroupLimit                 metabase-enterprise.metabot.models.metabot-group-limit
     :model/MetabotInstanceLimit              metabase-enterprise.metabot.models.metabot-instance-limit
     :model/MetabotPermissions                metabase-enterprise.metabot.models.metabot-permissions

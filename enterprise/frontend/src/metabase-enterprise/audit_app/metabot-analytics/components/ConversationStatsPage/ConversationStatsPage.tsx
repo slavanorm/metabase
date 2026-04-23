@@ -24,6 +24,7 @@ import { ConversationsByIPAddressChart } from "./ConversationsByIPAddressChart";
 import { ConversationsByProfileBarChart } from "./ConversationsByProfileBarChart";
 import { ConversationsBySourceChart } from "./ConversationsBySourceChart";
 import { ConversationsByUserChart } from "./ConversationsByUserChart";
+import { DataComplexityCards } from "./DataComplexityCards";
 import type { UsageStatsMetric } from "./query-utils";
 import { statsUrlStateConfig } from "./utils";
 
@@ -103,6 +104,12 @@ export function ConversationStatsPage({ location }: WithRouterProps) {
   return (
     <MetabotAdminLayout fullWidth>
       <SettingsPageWrapper mt="sm">
+        <Flex align="center" justify="space-between">
+          <Title order={2} display="flex" style={{ alignItems: "center" }}>
+            {t`Data complexity`}
+          </Title>
+        </Flex>
+        <DataComplexityCards />
         <Flex align="center" justify="space-between">
           <Title order={2} display="flex" style={{ alignItems: "center" }}>
             {t`Usage stats`}

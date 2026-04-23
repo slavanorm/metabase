@@ -72,3 +72,38 @@ export type ConversationDetail = {
   query_count: number;
   ip_address: string | null;
 };
+
+export type DataComplexityCatalogId = "library" | "universe" | "metabot";
+// TODO snake_case everything
+export type DataComplexityComponentId =
+  | "entity-count"
+  | "name-collisions"
+  | "synonym-pairs"
+  | "field-count"
+  | "repeated-measures";
+
+export type DataComplexitySubScore = {
+  measurement: number;
+  score: number;
+  error?: string;
+};
+
+export type DataComplexityCatalog = {
+  total: number;
+  components: {
+    [K in DataComplexityComponentId]: DataComplexitySubScore;
+  };
+};
+
+export type DataComplexityScoresResponse = {
+  meta: {
+    "formula-version": number;
+    "synonym-threshold": number;
+    "embedding-model"?: {
+      provider: string;
+      "model-name": string;
+    } | null;
+  };
+} & {
+  [K in DataComplexityCatalogId]: DataComplexityCatalog;
+};

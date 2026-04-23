@@ -1,8 +1,8 @@
 (ns metabase-enterprise.semantic-layer.api
-  "Admin-only HTTP endpoint exposing the Data Complexity Score."
+  "Admin-only HTTP endpoints exposing and refreshing the Data Complexity Score."
   (:require
-   [metabase-enterprise.semantic-layer.complexity :as complexity]
-   [metabase-enterprise.semantic-layer.metabot-scope :as metabot-scope]
+   [metabase-enterprise.semantic-layer.models.data-complexity-score :as data-complexity-score]
+   [metabase-enterprise.semantic-layer.task.complexity-score :as task.complexity-score]
    [metabase.api.common :as api]
    [metabase.api.macros :as api.macros]
    [metabase.api.routes.common :refer [+auth]]))
@@ -50,11 +50,18 @@
      [:embedding-model {:optional true} EmbeddingModelMeta]]]])
 
 (api.macros/defendpoint :get "/complexity" :- ComplexityScoresResponse
-  "Return the current Data Complexity Score for this instance.
-  Superuser-only, and quite expensive."
+  "Return the most recently stored Data Complexity Score for this instance.
+  Superuser-only."
   [_route _query _body]
   (api/check-superuser)
-  (complexity/complexity-scores :metabot-scope (metabot-scope/internal-metabot-scope)))
+  (api/check-404 (data-complexity-score/latest-score)))
+
+(api.macros/defendpoint :post "/complexity/refresh" :- ComplexityScoresResponse
+  "Force recomputation of the Data Complexity Score, persist the fresh snapshot, and return it.
+  Superuser-only."
+  [_route _query _body]
+  (api/check-superuser)
+  (task.complexity-score/force-scoring!))
 
 (def ^{:arglists '([request respond raise])} routes
   "`/api/ee/semantic-layer` routes."

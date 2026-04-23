@@ -8,6 +8,7 @@
    ;; `scoring-task-registered-test` verifies init.clj's actual wiring path.
    [metabase-enterprise.semantic-layer.init]
    [metabase-enterprise.semantic-layer.metabot-scope :as metabot-scope]
+   [metabase-enterprise.semantic-layer.models.data-complexity-score :as data-complexity-score]
    [metabase-enterprise.semantic-layer.settings :as semantic-layer.settings]
    [metabase-enterprise.semantic-layer.task.complexity-score :as task.complexity-score]
    [metabase-enterprise.semantic-search.core :as semantic-search]
@@ -802,6 +803,23 @@
     :metabot {:total 0 :components {}} :meta {}}
    {:metabase-enterprise.semantic-layer.complexity/snowplow-published? published?}))
 
+(deftest ^:sequential run-scoring-persists-latest-score-snapshot-test
+  (testing "every successful computation persists a fresh snapshot for the overview endpoint"
+    (mt/initialize-if-needed! :db)
+    (mt/with-dynamic-fn-redefs [metabot-scope/internal-metabot-scope (constantly {})]
+      (let [before-id (some-> (data-complexity-score/latest-entry) :id)
+            result    (stub-result false)]
+        (mt/with-temporary-setting-values [data-complexity-scoring-enabled true]
+          (mt/with-dynamic-fn-redefs [complexity/complexity-scores (fn [& _] result)]
+            (#'task.complexity-score/run-scoring!)
+            (let [{:keys [id fingerprint score_data]} (data-complexity-score/latest-entry)]
+              (is (= result score_data))
+              (is (string? fingerprint))
+              (is (not (str/blank? fingerprint)))
+              (when before-id
+                (is (> id before-id)
+                    "a new append-only snapshot should be written for each run")))))))))
+
 (deftest ^:sequential run-scoring-persists-fingerprint-only-on-successful-publish-test
   (testing "fingerprint advances only when Snowplow accepted the event — failed publish must leave
            the stale fingerprint in place so the next boot / cron retries"
@@ -820,6 +838,49 @@
             (#'task.complexity-score/run-scoring!)
             (is (= "stale" (semantic-layer.settings/data-complexity-scoring-last-fingerprint))
                 "fingerprint preserved — next boot / cron will retry the emission")))))))
+
+(deftest ^:sequential run-scoring-keeps-fingerprint-stale-when-persistence-fails-test
+  (testing "persistence is part of a successful run now — if the cache write fails we must retry"
+    (mt/with-dynamic-fn-redefs [metabot-scope/internal-metabot-scope (constantly {})]
+      (mt/with-temporary-setting-values [data-complexity-scoring-enabled          true
+                                         data-complexity-scoring-last-fingerprint "stale"]
+        (mt/with-dynamic-fn-redefs [complexity/complexity-scores      (fn [& _] (stub-result true))
+                                    data-complexity-score/record-score! (fn [& _]
+                                                                          (throw (RuntimeException. "db boom")))]
+          (#'task.complexity-score/run-scoring!)
+          (is (= "stale" (semantic-layer.settings/data-complexity-scoring-last-fingerprint))
+              "fingerprint preserved so the next boot / cron retries the failed cache write"))))))
+
+(deftest ^:sequential force-scoring-bypasses-disabled-setting-test
+  (testing "manual refresh ignores the scheduled-task setting, persists the snapshot, and advances
+           the fingerprint on success"
+    (mt/with-dynamic-fn-redefs [metabot-scope/internal-metabot-scope (constantly {})]
+      (let [result     (stub-result true)
+            persisted? (atom nil)]
+        (mt/with-temporary-setting-values [data-complexity-scoring-enabled          false
+                                           data-complexity-scoring-last-fingerprint "stale"]
+          (mt/with-dynamic-fn-redefs [complexity/complexity-scores      (fn [& _] result)
+                                      data-complexity-score/record-score! (fn [fingerprint stored-score]
+                                                                            (reset! persisted? [fingerprint stored-score]))]
+            (is (= result (task.complexity-score/force-scoring!)))
+            (is (= result (second @persisted?)))
+            (is (string? (first @persisted?)))
+            (is (not= "stale" (semantic-layer.settings/data-complexity-scoring-last-fingerprint))
+                "forced refresh should refresh the success fingerprint even when the scheduler is disabled")))))))
+
+(deftest ^:sequential force-scoring-throws-when-persistence-fails-test
+  (testing "manual refresh should fail loudly when the fresh score cannot be stored"
+    (mt/with-dynamic-fn-redefs [metabot-scope/internal-metabot-scope (constantly {})]
+      (mt/with-temporary-setting-values [data-complexity-scoring-enabled          false
+                                         data-complexity-scoring-last-fingerprint "stale"]
+        (mt/with-dynamic-fn-redefs [complexity/complexity-scores      (fn [& _] (stub-result true))
+                                    data-complexity-score/record-score! (fn [& _]
+                                                                          (throw (RuntimeException. "db boom")))]
+          (is (thrown-with-msg? clojure.lang.ExceptionInfo
+                                #"persistence failed"
+                                (task.complexity-score/force-scoring!)))
+          (is (= "stale" (semantic-layer.settings/data-complexity-scoring-last-fingerprint))
+              "forced refresh should not advance the fingerprint when persistence fails"))))))
 
 (deftest ^:sequential maybe-emit-boot-score-only-advances-fingerprint-on-successful-publish-test
   (testing "boot-time emission never advances the last-successful fingerprint on failure — the

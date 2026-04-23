@@ -3197,7 +3197,9 @@
            app-db
            audit-app
            collections
+           config
            metabot
+           models
            premium-features
            settings
            startup
@@ -3218,7 +3220,6 @@
            config
            connection-pool
            llm
-           metabot
            models
            permissions
            premium-features

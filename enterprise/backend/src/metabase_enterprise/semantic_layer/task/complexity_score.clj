@@ -1,5 +1,5 @@
 (ns metabase-enterprise.semantic-layer.task.complexity-score
-  "Daily Quartz job that emits the Data Complexity Score.
+  "Daily Quartz job that computes, persists, and emits the Data Complexity Score.
   Shared jobstore + `DisallowConcurrentExecution` → one node per cluster per tick.
   Boot-time emission (for first-ever runs and parameter bumps) is driven separately by the startup
   hook in `metabase-enterprise.semantic-layer.init`, which runs regardless of scheduler state and is
@@ -11,6 +11,7 @@
    [clojurewerkz.quartzite.triggers :as triggers]
    [metabase-enterprise.semantic-layer.complexity :as complexity]
    [metabase-enterprise.semantic-layer.metabot-scope :as metabot-scope]
+   [metabase-enterprise.semantic-layer.models.data-complexity-score :as data-complexity-score]
    [metabase-enterprise.semantic-layer.settings :as settings]
    [metabase-enterprise.semantic-search.core :as semantic-search]
    [metabase.app-db.cluster-lock :as cluster-lock]
@@ -35,22 +36,61 @@
                            :synonym-threshold complexity/synonym-similarity-threshold}
                     embedding-model (assoc :embedding-model embedding-model))))))
 
+(defn- compute-and-persist-score!
+  "Compute one score snapshot and attempt to persist it. Returns
+  `{:result <score> :fingerprint <string> :persisted? <bool>}`."
+  []
+  (let [result      (complexity/complexity-scores :metabot-scope (metabot-scope/internal-metabot-scope))
+        fingerprint (current-fingerprint)
+        persisted?  (try
+                      (data-complexity-score/record-score! fingerprint result)
+                      true
+                      (catch Throwable t
+                        (log/warn t "Data Complexity Score: failed to persist score snapshot")
+                        false))]
+    {:result result
+     :fingerprint fingerprint
+     :persisted? persisted?}))
+
+(defn- finalize-score-run!
+  "Advance the last-successful fingerprint when the cached snapshot and Snowplow publish both
+  succeeded. When `throw-on-persistence-failure?` is true, rethrow a persistence failure so a
+  caller like the manual refresh endpoint can return an error instead of silently serving a fresh
+  score that never made it into the cache."
+  [{:keys [result fingerprint persisted?]}
+   {:keys [throw-on-persistence-failure?]}]
+  (cond
+    (and persisted? (::complexity/snowplow-published? (meta result)))
+    (settings/data-complexity-scoring-last-fingerprint! fingerprint)
+
+    (not persisted?)
+    (let [message "Data Complexity Score: persistence failed; leaving fingerprint unchanged so the next boot or cron retries"]
+      (if throw-on-persistence-failure?
+        (throw (ex-info message {:type ::score-persistence-failed}))
+        (log/warn message)))
+
+    :else
+    (log/warn "Data Complexity Score: Snowplow publish failed; leaving fingerprint unchanged so the next boot or cron retries"))
+  result)
+
+(defn force-scoring!
+  "Force one scoring pass regardless of `data-complexity-scoring-enabled`, persist the fresh
+  snapshot, and return it. Intended for explicit superuser-triggered refreshes."
+  []
+  (-> (compute-and-persist-score!)
+      (finalize-score-run! {:throw-on-persistence-failure? true})))
+
 (defn- run-scoring!
-  "One scoring pass. Gated by [[settings/data-complexity-scoring-enabled]] so admins can silence it
-  without unscheduling the job.
+  "One scheduled/boot scoring pass. Gated by [[settings/data-complexity-scoring-enabled]] so admins
+  can silence it without unscheduling the job.
 
   Returns the score result (with `::complexity/snowplow-published?` metadata) when scoring ran, or
-  nil when skipped / threw. The caller uses the metadata to gate fingerprint advancement: we only
-  consider this run \"done\" when Snowplow actually accepted the event. Otherwise the next boot
-  (or cron) needs to retry so telemetry doesn't silently stall behind a transient publish failure."
+  nil when skipped / threw."
   []
   (if (settings/data-complexity-scoring-enabled)
     (try
-      (let [result (complexity/complexity-scores :metabot-scope (metabot-scope/internal-metabot-scope))]
-        (if (::complexity/snowplow-published? (meta result))
-          (settings/data-complexity-scoring-last-fingerprint! (current-fingerprint))
-          (log/warn "Data Complexity Score: Snowplow publish failed; leaving fingerprint unchanged so the next boot or cron retries"))
-        result)
+      (-> (compute-and-persist-score!)
+          (finalize-score-run! {:throw-on-persistence-failure? false}))
       (catch Throwable t
         (log/warn t "Data Complexity Score job failed")
         nil))

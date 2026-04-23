@@ -6,6 +6,7 @@
   (:require
    [metabase-enterprise.semantic-layer.settings]
    [metabase-enterprise.semantic-layer.task.complexity-score :as task.complexity-score]
+   [metabase-enterprise.semantic-layer.task.complexity-score-trimmer]
    [metabase.startup.core :as startup]
    [metabase.util.quick-task :as quick-task]))
 
