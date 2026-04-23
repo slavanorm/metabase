@@ -438,18 +438,18 @@
 (defn- raw-complexity-events []
   (->> @snowplow-test/*snowplow-collector*
        (map #(get-in % [:properties "data"]))
-       (filter #(= "iglu:com.metabase/semantic_complexity/jsonschema/2-0-0"
+       (filter #(= "iglu:com.metabase/data_complexity/jsonschema/1-0-0"
                    (get % "schema")))))
 
-(def ^:private semantic-complexity-schema
+(def ^:private data-complexity-schema
   (delay
-    (-> "snowplow/iglu-client-embedded/schemas/com.metabase/semantic_complexity/jsonschema/2-0-0"
+    (-> "snowplow/iglu-client-embedded/schemas/com.metabase/data_complexity/jsonschema/1-0-0"
         slurp
         json/decode+kw)))
 
 (defn- schema-enum
   [prop]
-  (set (get-in @semantic-complexity-schema [:properties prop :enum])))
+  (set (get-in @data-complexity-schema [:properties prop :enum])))
 
 (deftest ^:sequential emit-snowplow-publishes-totals-and-variables-test
   (testing "one event per catalog-total + one per (catalog × dimension × variable)"
@@ -533,10 +533,10 @@
             (is (= 1024 (count err))
                 "error is clipped to the schema's maxLength of 1024")))))))
 
-(deftest ^:sequential emit-snowplow-schema-2-0-0-payload-shape-test
+(deftest ^:sequential emit-snowplow-schema-payload-shape-test
   (snowplow-test/with-fake-snowplow-collector
     (doseq [level [0 1 2]]
-      (testing (format "level %d events match schema 2-0-0 payload expectations" level)
+      (testing (format "level %d events match schema 1-0-0 payload expectations" level)
         (snowplow-test/pop-event-data-and-user-id!)
         (let [result (complexity/score-from-entities
                       (catalog [(entity :name "orders" :field-count 2)
@@ -584,7 +584,7 @@
                                                      events))]
             (is (seq raw-events) "sanity: semantic complexity events were emitted")
             (is (= (count raw-events) (count events)))
-            (is (every? #(= "iglu:com.metabase/semantic_complexity/jsonschema/2-0-0"
+            (is (every? #(= "iglu:com.metabase/data_complexity/jsonschema/1-0-0"
                             (get % "schema"))
                         raw-events))
             (is (every? #(= level (get % "level")) events))
