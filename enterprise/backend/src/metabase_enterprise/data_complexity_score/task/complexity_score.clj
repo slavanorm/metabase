@@ -7,6 +7,7 @@
    [clojurewerkz.quartzite.triggers :as triggers]
    [metabase-enterprise.data-complexity-score.complexity :as complexity]
    [metabase-enterprise.data-complexity-score.metabot-scope :as metabot-scope]
+   [metabase-enterprise.data-complexity-score.metrics.semantic :as metrics.semantic]
    [metabase-enterprise.data-complexity-score.settings :as settings]
    [metabase-enterprise.semantic-search.core :as semantic-search]
    [metabase.app-db.cluster-lock :as cluster-lock]
@@ -23,14 +24,12 @@
 
 (defn- current-fingerprint
   "String capturing everything that changes the meaning of an emitted score — mirror of the Snowplow
-  `formula_version` + `parameters` fields. Includes `weights` so re-tuning forces a re-score
-  without bumping `formula-version`; only structural changes to the scoring algorithm need that."
+  `formula_version` + `parameters` fields."
   []
   (let [embedding-model (semantic-search/active-embedding-model)]
     (pr-str (into (sorted-map)
                   (cond-> {:formula-version   complexity/formula-version
-                           :synonym-threshold complexity/synonym-similarity-threshold
-                           :weights           complexity/weights}
+                           :synonym-threshold metrics.semantic/synonym-similarity-threshold}
                     embedding-model (assoc :embedding-model embedding-model))))))
 
 (defn- run-scoring!
