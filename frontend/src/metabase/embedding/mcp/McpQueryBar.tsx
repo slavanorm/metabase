@@ -57,7 +57,15 @@ export function McpQueryBar() {
     ...(rowCount >= 2 ? [TABLE_CHART_TYPE] : []),
   ];
 
-  if (!question || !queryResults || sensibleChartTypes.length === 0) {
+  const hasOnlyTable =
+    sensibleChartTypes.length === 1 && sensibleChartTypes[0].type === "table";
+
+  if (
+    !question ||
+    !queryResults ||
+    sensibleChartTypes.length === 0 ||
+    hasOnlyTable
+  ) {
     return null;
   }
 
