@@ -4,6 +4,31 @@
   overflow: hidden;
 }
 
+.tableContainer {
+  max-width: 100%;
+  overflow-x: auto;
+  margin-bottom: 1rem;
+}
+
+.aiMarkdown table {
+  width: max-content;
+  min-width: 100%;
+  border-collapse: collapse;
+}
+
+.aiMarkdown th,
+.aiMarkdown td {
+  padding: 0.5rem 0.75rem;
+  text-align: left;
+  vertical-align: top;
+  border: 1px solid var(--mb-color-border);
+}
+
+.aiMarkdown th {
+  font-weight: 700;
+  background: var(--mb-color-background-secondary);
+}
+
 .aiMarkdown pre {
   overflow: auto hidden;
   max-width: 100%;
