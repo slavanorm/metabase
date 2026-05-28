@@ -484,7 +484,7 @@
 (def ^:dynamic ^:private *pivot-max-result-rows*
   "Maximum number of result rows for each pivot sub-query. Divided by the number of aggregations since each aggregation
   adds a column to the output, so fewer rows are needed to fill the pivot table."
-  200000)
+  2000000)
 
 (defn- pivot-query-max-rows
   "Calculate the per-sub-query row limit for pivot queries: `floor(pivot-max-result-rows / num-aggregations)`.
